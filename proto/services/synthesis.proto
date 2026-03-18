@@ -1,0 +1,34 @@
+syntax = "proto3";
+package rag.services.synthesis;
+
+import "common/common.proto";
+
+service SynthesisAgent {
+  rpc Synthesize(SynthesizeRequest) returns (SynthesizeResponse);
+  rpc SynthesizeStream(SynthesizeRequest) returns (stream SynthesizeStreamEvent);
+}
+
+message SynthesizeRequest {
+  string query_text = 1;
+  rag.common.QueryIntent intent = 2;
+  repeated rag.common.RetrievedChunk context_chunks = 3;
+  optional string graph_context = 4;
+  optional string document_summary = 5;
+  optional string system_prompt_override = 6;
+  optional string model = 7;
+  rag.common.SessionId session_id = 8;
+  rag.common.TraceContext trace_context = 9;
+}
+
+message SynthesizeResponse {
+  rag.common.OperationResult result = 1;
+  rag.common.Answer answer = 2;
+}
+
+message SynthesizeStreamEvent {
+  oneof event {
+    string token = 1;
+    rag.common.Answer complete_answer = 2;
+    string error = 3;
+  }
+}

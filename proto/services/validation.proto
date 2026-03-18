@@ -1,0 +1,70 @@
+syntax = "proto3";
+package rag.services.validation;
+
+import "common/common.proto";
+
+service ValidationAgent {
+  rpc Validate(ValidateRequest) returns (ValidateResponse);
+  rpc CheckHallucination(HallucinationCheckRequest) returns (HallucinationCheckResponse);
+  rpc VerifyAttribution(AttributionCheckRequest) returns (AttributionCheckResponse);
+}
+
+message ValidateRequest {
+  rag.common.Answer answer = 1;
+  repeated rag.common.RetrievedChunk source_chunks = 2;
+  string original_query = 3;
+  rag.common.TraceContext trace_context = 4;
+}
+
+message ValidateResponse {
+  rag.common.OperationResult result = 1;
+  float quality_score = 2;
+  bool is_acceptable = 3;
+  repeated ValidationIssue issues = 4;
+  optional string revision_feedback = 5;
+}
+
+message ValidationIssue {
+  string issue_type = 1;
+  string description = 2;
+  float severity = 3;
+  optional string claim_text = 4;
+}
+
+message HallucinationCheckRequest {
+  rag.common.Answer answer = 1;
+  repeated rag.common.RetrievedChunk source_chunks = 2;
+  rag.common.TraceContext trace_context = 3;
+}
+
+message HallucinationCheckResponse {
+  rag.common.OperationResult result = 1;
+  repeated ClaimVerification claims = 2;
+  float grounding_score = 3;
+}
+
+message ClaimVerification {
+  string claim_text = 1;
+  bool is_grounded = 2;
+  float confidence = 3;
+  optional rag.common.ChunkId supporting_chunk_id = 4;
+  optional string explanation = 5;
+}
+
+message AttributionCheckRequest {
+  rag.common.Answer answer = 1;
+  repeated rag.common.RetrievedChunk source_chunks = 2;
+  rag.common.TraceContext trace_context = 3;
+}
+
+message AttributionCheckResponse {
+  rag.common.OperationResult result = 1;
+  repeated CitationVerification citations = 2;
+  float attribution_score = 3;
+}
+
+message CitationVerification {
+  rag.common.Citation citation = 1;
+  bool is_valid = 2;
+  optional string issue = 3;
+}

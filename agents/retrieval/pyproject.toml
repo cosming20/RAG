@@ -1,0 +1,16 @@
+[project]
+name = "rag-agent-retrieval"
+version = "0.1.0"
+description = "Retrieval Agent — Qdrant hybrid search, storage, RRF/Convex fusion"
+requires-python = ">=3.12"
+dependencies = ["rag-common"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["retrieval_agent"]
+
+[tool.uv.sources]
+rag-common = { workspace = true }

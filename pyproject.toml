@@ -1,0 +1,55 @@
+[project]
+name = "rag-swarm"
+version = "0.1.0"
+description = "Multi-agent RAG system with autonomous swarm orchestration"
+requires-python = ">=3.12"
+readme = "README.md"
+dependencies = [
+    "rag-common",
+    "rag-agent-router",
+    "rag-agent-ingestion",
+    "rag-agent-chunking",
+    "rag-agent-embedding",
+    "rag-agent-retrieval",
+    "rag-agent-graph",
+    "rag-agent-reranking",
+    "rag-agent-synthesis",
+    "rag-agent-validation",
+]
+
+[tool.uv.workspace]
+members = [
+    "lib/rag_common",
+    "agents/router",
+    "agents/ingestion",
+    "agents/chunking",
+    "agents/embedding",
+    "agents/retrieval",
+    "agents/graph",
+    "agents/reranking",
+    "agents/synthesis",
+    "agents/validation",
+]
+
+[tool.uv.sources]
+rag-common = { workspace = true }
+rag-agent-router = { workspace = true }
+rag-agent-ingestion = { workspace = true }
+rag-agent-chunking = { workspace = true }
+rag-agent-embedding = { workspace = true }
+rag-agent-retrieval = { workspace = true }
+rag-agent-graph = { workspace = true }
+rag-agent-reranking = { workspace = true }
+rag-agent-synthesis = { workspace = true }
+rag-agent-validation = { workspace = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "A", "SIM", "TCH"]

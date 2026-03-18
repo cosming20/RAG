@@ -1,0 +1,142 @@
+syntax = "proto3";
+package rag.common;
+
+import "google/protobuf/timestamp.proto";
+
+// ── Identifiers ──────────────────────────────────────────
+message DocumentId {
+  string value = 1;
+}
+
+message ChunkId {
+  string value = 1;
+}
+
+message TaskId {
+  string value = 1;
+}
+
+message SessionId {
+  string value = 1;
+}
+
+message TraceContext {
+  string trace_id = 1;
+  string span_id = 2;
+  map<string, string> baggage = 3;
+}
+
+// ── Task Lifecycle ───────────────────────────────────────
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_PENDING = 1;
+  TASK_STATUS_CLAIMED = 2;
+  TASK_STATUS_PROCESSING = 3;
+  TASK_STATUS_COMPLETED = 4;
+  TASK_STATUS_FAILED = 5;
+  TASK_STATUS_TIMED_OUT = 6;
+  TASK_STATUS_POISON = 7;
+}
+
+message TaskMeta {
+  TaskId task_id = 1;
+  string agent_id = 2;
+  TaskStatus status = 3;
+  uint32 attempt = 4;
+  uint32 max_attempts = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  optional google.protobuf.Timestamp deadline = 8;
+  TraceContext trace_context = 9;
+  uint32 pipeline_depth = 10;
+}
+
+// ── Document Domain ──────────────────────────────────────
+enum DocumentFormat {
+  DOCUMENT_FORMAT_UNSPECIFIED = 0;
+  DOCUMENT_FORMAT_PDF = 1;
+  DOCUMENT_FORMAT_DOCX = 2;
+  DOCUMENT_FORMAT_PPTX = 3;
+  DOCUMENT_FORMAT_XLSX = 4;
+  DOCUMENT_FORMAT_HTML = 5;
+  DOCUMENT_FORMAT_MARKDOWN = 6;
+  DOCUMENT_FORMAT_IMAGE = 7;
+  DOCUMENT_FORMAT_LATEX = 8;
+  DOCUMENT_FORMAT_CSV = 9;
+  DOCUMENT_FORMAT_CODE = 10;
+  DOCUMENT_FORMAT_TXT = 11;
+}
+
+message DocumentMeta {
+  DocumentId document_id = 1;
+  string filename = 2;
+  DocumentFormat format = 3;
+  uint64 size_bytes = 4;
+  string content_hash = 5;
+  map<string, string> metadata = 6;
+  google.protobuf.Timestamp ingested_at = 7;
+}
+
+message Chunk {
+  ChunkId chunk_id = 1;
+  DocumentId document_id = 2;
+  string text = 3;
+  uint32 sequence_index = 4;
+  uint32 start_offset = 5;
+  uint32 end_offset = 6;
+  map<string, string> metadata = 7;
+}
+
+message EmbeddingVector {
+  repeated float values = 1;
+  string model = 2;
+  uint32 dimensions = 3;
+}
+
+message SparseVector {
+  repeated uint32 indices = 1;
+  repeated float values = 2;
+}
+
+message HybridVectors {
+  EmbeddingVector dense = 1;
+  SparseVector sparse = 2;
+}
+
+// ── Query Domain ─────────────────────────────────────────
+enum QueryIntent {
+  QUERY_INTENT_UNSPECIFIED = 0;
+  QUERY_INTENT_FACTUAL = 1;
+  QUERY_INTENT_ANALYTICAL = 2;
+  QUERY_INTENT_COMPARATIVE = 3;
+  QUERY_INTENT_PROCEDURAL = 4;
+  QUERY_INTENT_EXPLORATORY = 5;
+}
+
+message RetrievedChunk {
+  Chunk chunk = 1;
+  float relevance_score = 2;
+  string source_description = 3;
+}
+
+message Citation {
+  DocumentId document_id = 1;
+  string filename = 2;
+  uint32 page_number = 3;
+  string section = 4;
+  string quoted_text = 5;
+}
+
+message Answer {
+  string text = 1;
+  repeated Citation citations = 2;
+  float confidence_score = 3;
+  map<string, string> metadata = 4;
+}
+
+message OperationResult {
+  bool success = 1;
+  optional string error_message = 2;
+  optional string error_code = 3;
+  double processing_time_ms = 4;
+}

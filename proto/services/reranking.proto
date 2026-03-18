@@ -1,0 +1,56 @@
+syntax = "proto3";
+package rag.services.reranking;
+
+import "common/common.proto";
+
+service RerankingAgent {
+  rpc Rerank(RerankRequest) returns (RerankResponse);
+  rpc TrimRelevance(TrimRelevanceRequest) returns (TrimRelevanceResponse);
+  rpc ResolveReferences(ResolveReferencesRequest) returns (ResolveReferencesResponse);
+}
+
+message RerankRequest {
+  string query_text = 1;
+  repeated rag.common.RetrievedChunk chunks = 2;
+  optional string model = 3;
+  uint32 top_n = 4;
+  rag.common.TraceContext trace_context = 5;
+}
+
+message RerankResponse {
+  rag.common.OperationResult result = 1;
+  repeated RankedChunk ranked_chunks = 2;
+}
+
+message RankedChunk {
+  rag.common.RetrievedChunk chunk = 1;
+  float rerank_score = 2;
+  uint32 original_rank = 3;
+  uint32 new_rank = 4;
+}
+
+message TrimRelevanceRequest {
+  string query_text = 1;
+  repeated RankedChunk ranked_chunks = 2;
+  float relevance_threshold = 3;
+  rag.common.TraceContext trace_context = 4;
+}
+
+message TrimRelevanceResponse {
+  rag.common.OperationResult result = 1;
+  repeated RankedChunk relevant_chunks = 2;
+  repeated RankedChunk trimmed_chunks = 3;
+}
+
+message ResolveReferencesRequest {
+  repeated RankedChunk chunks = 1;
+  uint32 max_depth = 2;
+  uint32 max_references = 3;
+  rag.common.TraceContext trace_context = 4;
+}
+
+message ResolveReferencesResponse {
+  rag.common.OperationResult result = 1;
+  repeated RankedChunk primary_chunks = 2;
+  repeated rag.common.RetrievedChunk referenced_chunks = 3;
+}

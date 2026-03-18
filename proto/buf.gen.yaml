@@ -1,0 +1,8 @@
+version: v2
+plugins:
+  - local: python
+    out: ../lib/rag_common/generated
+  - local: grpc_python
+    out: ../lib/rag_common/generated
+managed:
+  enabled: true

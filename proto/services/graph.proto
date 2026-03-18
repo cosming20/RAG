@@ -1,0 +1,85 @@
+syntax = "proto3";
+package rag.services.graph;
+
+import "common/common.proto";
+
+service GraphAgent {
+  rpc ExtractEntities(ExtractEntitiesRequest) returns (ExtractEntitiesResponse);
+  rpc StoreEntities(StoreEntitiesRequest) returns (StoreEntitiesResponse);
+  rpc QueryGraph(GraphQueryRequest) returns (GraphQueryResponse);
+  rpc ExpandContext(ExpandContextRequest) returns (ExpandContextResponse);
+}
+
+message Entity {
+  string name = 1;
+  string entity_type = 2;
+  map<string, string> properties = 3;
+}
+
+message Relationship {
+  Entity source = 1;
+  Entity target = 2;
+  string relationship_type = 3;
+  map<string, string> properties = 4;
+}
+
+message ExtractEntitiesRequest {
+  rag.common.DocumentId document_id = 1;
+  repeated rag.common.Chunk chunks = 2;
+  rag.common.TraceContext trace_context = 3;
+}
+
+message ExtractEntitiesResponse {
+  rag.common.OperationResult result = 1;
+  repeated Entity entities = 2;
+  repeated Relationship relationships = 3;
+}
+
+message StoreEntitiesRequest {
+  rag.common.DocumentId document_id = 1;
+  repeated Entity entities = 2;
+  repeated Relationship relationships = 3;
+  repeated rag.common.Chunk chunks = 4;
+  rag.common.TraceContext trace_context = 5;
+}
+
+message StoreEntitiesResponse {
+  rag.common.OperationResult result = 1;
+  uint32 nodes_created = 2;
+  uint32 relationships_created = 3;
+}
+
+message GraphQueryRequest {
+  string query_text = 1;
+  repeated string entity_names = 2;
+  uint32 max_depth = 3;
+  uint32 max_results = 4;
+  rag.common.TraceContext trace_context = 5;
+}
+
+message GraphQueryResponse {
+  rag.common.OperationResult result = 1;
+  repeated GraphPath paths = 2;
+  repeated Entity entities = 3;
+  string context_text = 4;
+}
+
+message GraphPath {
+  repeated Entity nodes = 1;
+  repeated Relationship edges = 2;
+}
+
+message ExpandContextRequest {
+  repeated string entity_names = 1;
+  repeated rag.common.ChunkId seed_chunk_ids = 2;
+  uint32 max_depth = 3;
+  uint32 max_expansions = 4;
+  rag.common.TraceContext trace_context = 5;
+}
+
+message ExpandContextResponse {
+  rag.common.OperationResult result = 1;
+  repeated rag.common.RetrievedChunk expanded_chunks = 2;
+  repeated GraphPath expansion_paths = 3;
+  string context_summary = 4;
+}

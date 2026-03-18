@@ -1,0 +1,44 @@
+syntax = "proto3";
+package rag.services.embedding;
+
+import "common/common.proto";
+
+service EmbeddingAgent {
+  rpc Embed(EmbedRequest) returns (EmbedResponse);
+  rpc EmbedBatch(EmbedBatchRequest) returns (EmbedBatchResponse);
+  rpc EmbedStream(stream EmbedRequest) returns (stream EmbedResponse);
+  rpc EmbedHybrid(EmbedHybridRequest) returns (EmbedHybridResponse);
+}
+
+message EmbedRequest {
+  string text = 1;
+  optional string model = 2;
+  rag.common.TraceContext trace_context = 3;
+}
+
+message EmbedResponse {
+  rag.common.OperationResult result = 1;
+  rag.common.EmbeddingVector vector = 2;
+}
+
+message EmbedBatchRequest {
+  repeated string texts = 1;
+  optional string model = 2;
+  rag.common.TraceContext trace_context = 3;
+}
+
+message EmbedBatchResponse {
+  rag.common.OperationResult result = 1;
+  repeated rag.common.EmbeddingVector vectors = 2;
+}
+
+message EmbedHybridRequest {
+  repeated string texts = 1;
+  optional string dense_model = 2;
+  rag.common.TraceContext trace_context = 3;
+}
+
+message EmbedHybridResponse {
+  rag.common.OperationResult result = 1;
+  repeated rag.common.HybridVectors vectors = 2;
+}

@@ -1,0 +1,65 @@
+syntax = "proto3";
+package rag.services.chunking;
+
+import "common/common.proto";
+
+service ChunkingAgent {
+  rpc ChunkDocument(ChunkDocumentRequest) returns (ChunkDocumentResponse);
+  rpc NormalizeChunks(NormalizeChunksRequest) returns (NormalizeChunksResponse);
+  rpc SummarizeDocument(SummarizeDocumentRequest) returns (SummarizeDocumentResponse);
+}
+
+enum ChunkingStrategy {
+  CHUNKING_STRATEGY_UNSPECIFIED = 0;
+  CHUNKING_STRATEGY_HIERARCHICAL = 1;
+  CHUNKING_STRATEGY_HYBRID = 2;
+  CHUNKING_STRATEGY_SEMANTIC = 3;
+  CHUNKING_STRATEGY_SYNTAX_AWARE = 4;
+  CHUNKING_STRATEGY_TABLE = 5;
+  CHUNKING_STRATEGY_SLIDING_WINDOW = 6;
+}
+
+message ChunkDocumentRequest {
+  rag.common.DocumentId document_id = 1;
+  string parsed_content = 2;
+  rag.common.DocumentFormat format = 3;
+  ChunkingStrategy strategy = 4;
+  ChunkingConfig config = 5;
+  rag.common.TraceContext trace_context = 6;
+}
+
+message ChunkingConfig {
+  uint32 max_chunk_size = 1;
+  uint32 min_chunk_size = 2;
+  float overlap_ratio = 3;
+  bool respect_boundaries = 4;
+}
+
+message ChunkDocumentResponse {
+  rag.common.OperationResult result = 1;
+  repeated rag.common.Chunk chunks = 2;
+  uint32 total_chunks = 3;
+}
+
+message NormalizeChunksRequest {
+  repeated rag.common.Chunk chunks = 1;
+  rag.common.TraceContext trace_context = 2;
+}
+
+message NormalizeChunksResponse {
+  rag.common.OperationResult result = 1;
+  repeated rag.common.Chunk normalized_chunks = 2;
+}
+
+message SummarizeDocumentRequest {
+  rag.common.DocumentId document_id = 1;
+  string parsed_content = 2;
+  repeated rag.common.Chunk chunks = 3;
+  rag.common.TraceContext trace_context = 4;
+}
+
+message SummarizeDocumentResponse {
+  rag.common.OperationResult result = 1;
+  string summary = 2;
+  repeated string key_topics = 3;
+}

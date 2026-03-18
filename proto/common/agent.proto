@@ -1,0 +1,27 @@
+syntax = "proto3";
+package rag.agent;
+
+import "google/protobuf/timestamp.proto";
+
+enum AgentRole {
+  AGENT_ROLE_UNSPECIFIED = 0;
+  AGENT_ROLE_ROUTER = 1;
+  AGENT_ROLE_INGESTION = 2;
+  AGENT_ROLE_CHUNKING = 3;
+  AGENT_ROLE_EMBEDDING = 4;
+  AGENT_ROLE_RETRIEVAL = 5;
+  AGENT_ROLE_GRAPH = 6;
+  AGENT_ROLE_RERANKING = 7;
+  AGENT_ROLE_SYNTHESIS = 8;
+  AGENT_ROLE_VALIDATION = 9;
+}
+
+message AgentInfo {
+  string agent_id = 1;
+  AgentRole role = 2;
+  string grpc_address = 3;
+  google.protobuf.Timestamp registered_at = 4;
+  google.protobuf.Timestamp last_heartbeat = 5;
+  map<string, string> capabilities = 6;
+  string status = 7;
+}

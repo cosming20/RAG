@@ -1,0 +1,16 @@
+[project]
+name = "rag-agent-embedding"
+version = "0.1.0"
+description = "Embedding Agent — dense (LiteLLM) + sparse (BM42) embeddings"
+requires-python = ">=3.12"
+dependencies = ["rag-common"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["embedding_agent"]
+
+[tool.uv.sources]
+rag-common = { workspace = true }

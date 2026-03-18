@@ -1,0 +1,54 @@
+syntax = "proto3";
+package rag.services.ingestion;
+
+import "common/common.proto";
+
+service IngestionAgent {
+  rpc ParseDocument(ParseDocumentRequest) returns (ParseDocumentResponse);
+  rpc ValidateDocument(ValidateDocumentRequest) returns (ValidateDocumentResponse);
+}
+
+message ParseDocumentRequest {
+  rag.common.DocumentId document_id = 1;
+  bytes content = 2;
+  string filename = 3;
+  rag.common.DocumentFormat format = 4;
+  map<string, string> options = 5;
+  rag.common.TraceContext trace_context = 6;
+}
+
+message ParseDocumentResponse {
+  rag.common.OperationResult result = 1;
+  rag.common.DocumentMeta document_meta = 2;
+  string parsed_content = 3;
+  repeated TableBlock tables = 4;
+  repeated ImageBlock images = 5;
+}
+
+message TableBlock {
+  string content = 1;
+  uint32 page_number = 2;
+  map<string, string> metadata = 3;
+}
+
+message ImageBlock {
+  bytes data = 1;
+  string ocr_text = 2;
+  uint32 page_number = 3;
+  map<string, string> metadata = 4;
+}
+
+message ValidateDocumentRequest {
+  bytes content = 1;
+  string filename = 2;
+  rag.common.DocumentFormat format = 3;
+  rag.common.TraceContext trace_context = 4;
+}
+
+message ValidateDocumentResponse {
+  rag.common.OperationResult result = 1;
+  bool is_valid = 2;
+  repeated string validation_errors = 3;
+  rag.common.DocumentFormat detected_format = 4;
+  uint64 size_bytes = 5;
+}

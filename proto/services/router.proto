@@ -1,0 +1,83 @@
+syntax = "proto3";
+package rag.services.router;
+
+import "common/common.proto";
+
+service RouterAgent {
+  rpc Query(QueryRequest) returns (QueryResponse);
+  rpc QueryStream(QueryRequest) returns (stream QueryStreamEvent);
+  rpc IngestDocument(IngestDocumentRequest) returns (IngestDocumentResponse);
+  rpc IngestDocumentStream(stream IngestDocumentChunk) returns (IngestDocumentResponse);
+  rpc GetTaskStatus(rag.common.TaskId) returns (rag.common.TaskMeta);
+}
+
+message QueryRequest {
+  rag.common.SessionId session_id = 1;
+  string query_text = 2;
+  optional rag.common.QueryIntent intent_hint = 3;
+  uint32 max_results = 4;
+  optional uint32 timeout_ms = 5;
+  rag.common.TraceContext trace_context = 6;
+}
+
+message QueryResponse {
+  rag.common.OperationResult result = 1;
+  rag.common.Answer answer = 2;
+  repeated rag.common.RetrievedChunk retrieved_chunks = 3;
+  rag.common.QueryIntent detected_intent = 4;
+}
+
+message QueryStreamEvent {
+  oneof event {
+    IntentDetected intent_detected = 1;
+    ChunksRetrieved chunks_retrieved = 2;
+    SynthesisToken synthesis_token = 3;
+    ValidationResult validation_result = 4;
+    QueryComplete query_complete = 5;
+  }
+}
+
+message IntentDetected {
+  rag.common.QueryIntent intent = 1;
+  float confidence = 2;
+}
+
+message ChunksRetrieved {
+  repeated rag.common.RetrievedChunk chunks = 1;
+  string source = 2;
+}
+
+message SynthesisToken {
+  string token = 1;
+}
+
+message ValidationResult {
+  float quality_score = 1;
+  repeated string issues = 2;
+}
+
+message QueryComplete {
+  rag.common.Answer answer = 1;
+  rag.common.OperationResult result = 2;
+}
+
+message IngestDocumentRequest {
+  bytes content = 1;
+  string filename = 2;
+  rag.common.DocumentFormat format = 3;
+  map<string, string> metadata = 4;
+  rag.common.TraceContext trace_context = 5;
+}
+
+message IngestDocumentChunk {
+  oneof data {
+    IngestDocumentRequest header = 1;
+    bytes chunk_data = 2;
+  }
+}
+
+message IngestDocumentResponse {
+  rag.common.OperationResult result = 1;
+  rag.common.TaskId task_id = 2;
+  rag.common.DocumentId document_id = 3;
+}
