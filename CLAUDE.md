@@ -74,9 +74,13 @@ rag-swarm/
 - When changing output format, grep for all consumers of that stage
 
 ### Testing
+- **DO NOT write unit tests, integration tests, or test files in the codebase**
+- Tests will only be effective tests run manually or via scripts — not pytest suites
+- No `tests/` directories in the repo
 - Smoke test: each agent must start, connect to Redis, register, and shut down cleanly
-- Test command: `AGENT_GRPC_PORT={port} uv run --package rag-agent-{name} python -m {name}_agent.main`
-- All 9 agents must pass before any PR
+- Smoke test command: `AGENT_GRPC_PORT={port} uv run --package rag-agent-{name} python -m {name}_agent.main`
+- All 9 agents must pass smoke test before any PR
+- E2E testing is done by actually running the system and sending real documents/queries
 
 ### Docker / Deployment
 - Infrastructure ports: 2050-2057 (Redis, Qdrant, Neo4j, Jaeger)
