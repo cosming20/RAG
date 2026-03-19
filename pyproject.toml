@@ -15,6 +15,7 @@ dependencies = [
     "rag-agent-reranking",
     "rag-agent-synthesis",
     "rag-agent-validation",
+    "aiohttp>=3.13.3",
 ]
 
 [tool.uv.workspace]
