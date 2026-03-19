@@ -12,6 +12,7 @@ from rag_common.models.agent import AgentRole
 from rag_common.observability import setup_logging, setup_metrics, setup_tracing
 
 from .config import RouterConfig
+from .grpc_servicer import RouterServicer
 from .service import RouterService
 
 logger = logging.getLogger(__name__)
@@ -46,15 +47,18 @@ async def serve() -> None:
     await server.start(service_names=[])
 
     # Create the service
-    _router_service = RouterService(
+    router_service = RouterService(
         redis_client=server.redis_client,
         llm_client=llm_client,
         config=router_config,
     )
 
-    # TODO: Register the gRPC servicer once proto generation is complete
+    # gRPC servicer (ready for proto registration)
+    servicer = RouterServicer(router_service)
+    # TODO: Register when proto generation is complete:
     # from rag_common.generated.services import router_pb2_grpc
     # router_pb2_grpc.add_RouterAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.ROUTER)
 
     logger.info(
         "Router Agent ready — gRPC port=%d, role=%s",

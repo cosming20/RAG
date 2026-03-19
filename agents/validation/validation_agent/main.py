@@ -16,6 +16,7 @@ from rag_common.llm.client import LLMClient
 from rag_common.models.agent import AgentRole
 
 from agents.validation.validation_agent.config import ValidationConfig
+from agents.validation.validation_agent.grpc_servicer import ValidationServicer
 from agents.validation.validation_agent.service import ValidationService
 from agents.validation.validation_agent.worker import ValidationWorker
 
@@ -38,12 +39,21 @@ async def main() -> None:
     # --- LLM client ---
     llm_client = LLMClient(llm_config)
 
-    # --- Service + Worker ---
+    # --- Service ---
     service = ValidationService(
         server.redis_client,
         llm_client,
         validation_config,
     )
+
+    # --- gRPC servicer (ready for proto registration) ---
+    servicer = ValidationServicer(service)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import validation_pb2_grpc
+    # validation_pb2_grpc.add_ValidationAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.VALIDATION)
+
+    # --- Worker ---
     worker = ValidationWorker(
         server.redis_client,
         service,

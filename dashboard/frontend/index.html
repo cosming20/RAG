@@ -156,6 +156,24 @@ body {
 .view.active { display: flex; flex: 1; }
 
 /* ═══════════════════════════════════════════
+   VIEW: MONITOR — Pixel Office Visualization
+   ═══════════════════════════════════════════ */
+.pixel-office {
+  background: var(--void);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+#office-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+}
+
+/* ═══════════════════════════════════════════
    VIEW: MONITOR — Pipeline + Agent Grid
    ═══════════════════════════════════════════ */
 .pipeline-strip {
@@ -842,6 +860,9 @@ body {
   <div class="main-area">
     <!-- MONITOR VIEW -->
     <div class="view active" id="view-monitor">
+      <div class="pixel-office">
+        <canvas id="office-canvas" width="800" height="280"></canvas>
+      </div>
       <div class="pipeline-strip">
         <h3>Ingestion Pipeline</h3>
         <div class="pipe-row" id="pipe-ingest"></div>
@@ -1338,6 +1359,168 @@ function hjson(o){
     .replace(/: (\d+\.?\d*)/g,': <span class="n">$1</span>')
     .replace(/: (true|false)/g,': <span class="b">$1</span>');
 }
+
+/* ═══════════════════════════════════════════
+   PIXEL OFFICE — Canvas Visualization
+   ═══════════════════════════════════════════ */
+const TILE = 16;
+const SCALE = 2;
+const COLS = 25;
+const ROWS = 9;
+
+const DESKS = [
+  {col:3, row:2}, {col:8, row:2}, {col:13, row:2},
+  {col:3, row:5}, {col:8, row:5}, {col:13, row:5},
+  {col:18, row:2}, {col:18, row:5}, {col:21, row:3},
+];
+
+const AGENT_COLORS = [
+  '#388bfd', '#3fb950', '#d29922', '#a371f7',
+  '#39d2c0', '#db61a2', '#db6d28', '#58a6ff', '#7ee787'
+];
+
+const AGENT_TASKS = [
+  'Routing...', 'Parsing PDF...', 'Chunking...', 'Embedding...',
+  'Searching...', 'Graph BFS...', 'Reranking...', 'Generating...', 'Validating...'
+];
+
+const officeCanvas = document.getElementById('office-canvas');
+const officeCtx = officeCanvas.getContext('2d');
+let officeFrame = 0;
+
+function pxRect(x, y, w, h, color) {
+  officeCtx.fillStyle = color;
+  officeCtx.fillRect(x * SCALE, y * SCALE, w * SCALE, h * SCALE);
+}
+
+function drawFloor() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const shade = ((r + c) % 2 === 0) ? '#0d1520' : '#0f1825';
+      pxRect(c * TILE, r * TILE, TILE, TILE, shade);
+      pxRect(c * TILE, r * TILE, TILE, 1, '#131e2e');
+      pxRect(c * TILE, r * TILE, 1, TILE, '#131e2e');
+    }
+  }
+}
+
+function drawDesk(col, row) {
+  pxRect(col * TILE - 2, row * TILE + 6, 20, 12, '#2a1f0e');
+  pxRect(col * TILE - 1, row * TILE + 7, 18, 10, '#3d2b14');
+  pxRect(col * TILE + 4, row * TILE + 2, 8, 6, '#1a1a2e');
+  pxRect(col * TILE + 5, row * TILE + 3, 6, 4, '#222244');
+  pxRect(col * TILE + 7, row * TILE + 8, 2, 2, '#555');
+}
+
+function pxAdjustColor(hex, amount) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, Math.min(255, ((num >> 16) & 0xff) + amount));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + amount));
+  const b = Math.max(0, Math.min(255, (num & 0xff) + amount));
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+function drawCharacter(col, row, color, online, busy, frame) {
+  if (!online) return;
+
+  const bounce = busy ? Math.sin(frame * 0.15) * 2 : 0;
+  const baseY = row * TILE - 4 + bounce;
+  const baseX = col * TILE + 2;
+
+  // Head
+  pxRect(baseX + 2, baseY, 8, 6, color);
+  // Eyes
+  pxRect(baseX + 4, baseY + 2, 2, 2, '#fff');
+  pxRect(baseX + 7, baseY + 2, 2, 2, '#fff');
+  // Pupils (look at screen when busy)
+  const pupilOff = busy ? 1 : 0;
+  pxRect(baseX + 4 + pupilOff, baseY + 3, 1, 1, '#111');
+  pxRect(baseX + 7 + pupilOff, baseY + 3, 1, 1, '#111');
+  // Body
+  pxRect(baseX + 1, baseY + 6, 10, 8, color);
+  pxRect(baseX + 2, baseY + 7, 8, 6, pxAdjustColor(color, -30));
+  // Arms
+  if (busy) {
+    const armWiggle = Math.floor(frame * 0.1) % 2;
+    pxRect(baseX - 2, baseY + 8 + armWiggle, 4, 3, color);
+    pxRect(baseX + 10, baseY + 8 - armWiggle, 4, 3, color);
+  } else {
+    pxRect(baseX - 1, baseY + 7, 3, 4, color);
+    pxRect(baseX + 10, baseY + 7, 3, 4, color);
+  }
+
+  // Screen glow when busy
+  if (busy) {
+    pxRect(col * TILE + 5, row * TILE + 3, 6, 4, '#3388ff');
+    if (frame % 8 < 4) {
+      pxRect(baseX + 12, baseY + 6, 2, 2, '#fff');
+    }
+  }
+}
+
+function drawLabel(col, row, name, color, online) {
+  officeCtx.font = (9 * SCALE) + "px 'IBM Plex Mono'";
+  officeCtx.textAlign = 'center';
+  officeCtx.fillStyle = online ? color : '#384860';
+  officeCtx.fillText(name, (col * TILE + 6) * SCALE, (row * TILE - 8) * SCALE);
+}
+
+function drawSpeechBubble(col, row, text) {
+  const x = (col * TILE + 6) * SCALE;
+  const y = (row * TILE - 16) * SCALE;
+  officeCtx.font = (7 * SCALE) + "px 'IBM Plex Mono'";
+  const w = officeCtx.measureText(text).width + 8;
+
+  officeCtx.fillStyle = 'rgba(255,255,255,0.9)';
+  officeCtx.beginPath();
+  officeCtx.roundRect(x - w / 2, y - 10, w, 14, 3);
+  officeCtx.fill();
+
+  // Pointer triangle
+  officeCtx.fillStyle = 'rgba(255,255,255,0.9)';
+  officeCtx.beginPath();
+  officeCtx.moveTo(x - 3, y + 4);
+  officeCtx.lineTo(x + 3, y + 4);
+  officeCtx.lineTo(x, y + 8);
+  officeCtx.fill();
+
+  officeCtx.fillStyle = '#111';
+  officeCtx.textAlign = 'center';
+  officeCtx.fillText(text, x, y + 1);
+}
+
+function agentIsBusy(role) {
+  return (S.tasks || []).some(function(t) {
+    return t.agent_id === role && (t.status === 'claimed' || t.status === 'processing');
+  });
+}
+
+function renderOffice() {
+  officeCtx.clearRect(0, 0, officeCanvas.width, officeCanvas.height);
+  officeFrame++;
+
+  drawFloor();
+
+  A.forEach(function(agent, i) {
+    var desk = DESKS[i];
+    if (!desk) return;
+
+    var on = agentOnline(agent.r);
+    var busy = on && agentIsBusy(agent.r);
+
+    drawDesk(desk.col, desk.row);
+    drawCharacter(desk.col, desk.row, AGENT_COLORS[i], on, busy, officeFrame);
+    drawLabel(desk.col, desk.row, agent.l, AGENT_COLORS[i], on);
+
+    if (busy) {
+      drawSpeechBubble(desk.col, desk.row, AGENT_TASKS[i]);
+    }
+  });
+
+  requestAnimationFrame(renderOffice);
+}
+
+requestAnimationFrame(renderOffice);
 
 /* ═══════════════════════════════════════════
    INIT

@@ -1,15 +1,21 @@
-"""Stream consumer worker for the Embedding agent."""
+"""Stream consumer worker for the Embedding agent.
+
+Extends :class:`BaseStreamWorker` which provides the common consumer loop
+with deadline checks, retry/DLQ logic, pipeline depth enforcement, and
+idempotency checks.  This worker only implements ``_process_message()``
+with embedding-specific domain logic.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import logging
+from typing import Any
 from uuid import uuid4
 
 from rag_common.llm.client import LLMClient
 from rag_common.redis.client import RedisClient
-from rag_common.redis.state import StateStore
-from rag_common.redis.streams import StreamConsumer, StreamProducer
+from rag_common.redis.streams import StreamMessage
+from rag_common.redis.worker import BaseStreamWorker
 
 from agents.embedding.embedding_agent.config import EmbeddingConfig
 from agents.embedding.embedding_agent.service import EmbeddingService
@@ -18,10 +24,11 @@ logger = logging.getLogger(__name__)
 
 STREAM_IN = "rag:stream:ingest:chunked"
 STREAM_OUT = "rag:stream:ingest:embedded"
+DLQ_STREAM = "rag:stream:embedding:dlq"
 CONSUMER_GROUP = "embedding-agents"
 
 
-class EmbeddingWorker:
+class EmbeddingWorker(BaseStreamWorker):
     """Consumes chunked messages, generates embeddings, publishes results.
 
     Joins the ``embedding-agents`` consumer group on the
@@ -43,54 +50,34 @@ class EmbeddingWorker:
         *,
         consumer_id: str | None = None,
     ) -> None:
-        self._redis = redis_client
-        self._config = config
-        self._consumer_id = consumer_id or f"emb-{uuid4().hex[:8]}"
-        self._consumer = StreamConsumer(redis_client, STREAM_IN, CONSUMER_GROUP, self._consumer_id)
-        self._producer = StreamProducer(redis_client)
-        self._state = StateStore(redis_client)
-        self._service = EmbeddingService(redis_client, llm_client, config)
-        self._running = False
-
-    async def start(self) -> None:
-        """Initialize the consumer group and begin the processing loop."""
-        await self._consumer.ensure_group()
-        self._running = True
-        logger.info(
-            "EmbeddingWorker %s started on %s (group=%s)",
-            self._consumer_id, STREAM_IN, CONSUMER_GROUP,
+        cid = consumer_id or f"emb-{uuid4().hex[:8]}"
+        super().__init__(
+            redis_client,
+            input_stream=STREAM_IN,
+            output_stream=STREAM_OUT,
+            dlq_stream=DLQ_STREAM,
+            consumer_group=CONSUMER_GROUP,
+            consumer_id=cid,
+            output_stage="embeddings",
         )
-        await self._run_loop()
+        self._embedding_config = config
+        self._service = EmbeddingService(redis_client, llm_client, config)
 
-    async def stop(self) -> None:
-        """Signal the worker loop to stop."""
-        self._running = False
+    async def _process_message(self, msg: StreamMessage) -> Any:
+        """Generate embeddings for chunked document data.
 
-    async def _run_loop(self) -> None:
-        while self._running:
-            messages = await self._consumer.read(count=1, block_ms=5000)
+        Steps:
+            1. Read chunks from StateStore (``rag:results:{task_id}:chunks``).
+            2. Call :meth:`EmbeddingService.embed_chunks`.
+            3. Return result dict with ``output_ref``.
+        """
+        task_id = msg.task_id
+        logger.info("Processing task %s (message=%s)", task_id, msg.message_id)
 
-            for msg in messages:
-                task_id = msg.task_id
-                logger.info("Processing task %s (message=%s)", task_id, msg.message_id)
-                try:
-                    await self._process_message(task_id, msg.message_id, msg.trace_id)
-                except Exception:
-                    logger.exception("Failed to process task %s", task_id)
-                    # Message is NOT acknowledged so it can be retried / claimed.
-
-    async def _process_message(
-        self,
-        task_id: str,
-        message_id: str,
-        trace_id: str,
-    ) -> None:
         # 1. Read chunks from state store
         chunks_data = await self._state.get_result(task_id, "chunks")
         if chunks_data is None:
-            logger.error("No chunks found in state store for task %s", task_id)
-            await self._consumer.ack(message_id)
-            return
+            raise ValueError(f"No chunks found in state store for task {task_id}")
 
         chunks = chunks_data.get("chunks", []) if isinstance(chunks_data, dict) else chunks_data
 
@@ -101,14 +88,4 @@ class EmbeddingWorker:
             task_id, result["embedding_count"],
         )
 
-        # 3. Publish downstream
-        await self._producer.publish(
-            STREAM_OUT,
-            task_id,
-            trace_id=trace_id,
-            payload_ref=f"rag:results:{task_id}:embeddings",
-        )
-
-        # 4. Acknowledge
-        await self._consumer.ack(message_id)
-        logger.info("Task %s acknowledged", task_id)
+        return {"output_ref": f"rag:results:{task_id}:embeddings"}

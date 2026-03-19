@@ -12,6 +12,7 @@ from rag_common.models.agent import AgentRole
 from rag_common.observability import setup_logging, setup_metrics, setup_tracing
 
 from .config import ChunkingConfig
+from .grpc_servicer import ChunkingServicer
 from .service import ChunkingService
 from .worker import ChunkingWorker
 
@@ -52,6 +53,13 @@ async def serve() -> None:
         config=chunking_config,
     )
 
+    # gRPC servicer (ready for proto registration)
+    servicer = ChunkingServicer(chunking_service)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import chunking_pb2_grpc
+    # chunking_pb2_grpc.add_ChunkingAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.CHUNKING)
+
     # Build and start stream worker
     worker = ChunkingWorker(
         redis_client=redis_client,
@@ -67,7 +75,7 @@ async def serve() -> None:
     try:
         await server.wait_for_shutdown()
     finally:
-        await worker.stop()
+        worker.stop()
         worker_task.cancel()
         try:
             await worker_task

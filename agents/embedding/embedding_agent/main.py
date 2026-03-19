@@ -11,6 +11,8 @@ from rag_common.llm.client import LLMClient
 from rag_common.models.agent import AgentRole
 
 from agents.embedding.embedding_agent.config import EmbeddingConfig
+from agents.embedding.embedding_agent.service import EmbeddingService
+from agents.embedding.embedding_agent.grpc_servicer import EmbeddingServicer
 from agents.embedding.embedding_agent.worker import EmbeddingWorker
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,14 @@ async def main() -> None:
     # --- LLM client ---
     llm_client = LLMClient(llm_config)
 
+    # --- gRPC servicer (ready for proto registration) ---
+    embedding_service = EmbeddingService(server.redis_client, llm_client, embedding_config)
+    servicer = EmbeddingServicer(embedding_service)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import embedding_pb2_grpc
+    # embedding_pb2_grpc.add_EmbeddingAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.EMBEDDING)
+
     # --- Stream worker ---
     worker = EmbeddingWorker(
         redis_client=server.redis_client,
@@ -49,7 +59,7 @@ async def main() -> None:
     try:
         await server.wait_for_shutdown()
     finally:
-        await worker.stop()
+        worker.stop()
         worker_task.cancel()
         try:
             await worker_task

@@ -298,10 +298,12 @@ rag:stream:query:validated ──► Router assembles response → Client
                         DEAD LETTER QUEUES
                         ==================
 
-rag:stream:ingest:failed       (ingestion DLQ)
+rag:stream:ingest:dlq          (ingestion DLQ)
 rag:stream:chunking:dlq        (chunking DLQ)
-rag:stream:retrieval:dlq       (retrieval DLQ)
-rag:stream:graph:dlq           (graph DLQ)
+rag:stream:embedding:dlq       (embedding DLQ)
+rag:stream:retrieval-storage:dlq (retrieval storage DLQ)
+rag:stream:retrieval:dlq       (retrieval query DLQ)
+rag:stream:graph-storage:dlq   (graph storage DLQ)
 rag:stream:graph-query:dlq     (graph query DLQ)
 ```
 
@@ -366,7 +368,10 @@ rag-swarm/                          158 source files
 │   ├── redis/                      Client, Streams, Registry, TaskQueue, State, BaseStreamWorker, QueryCache
 │   ├── grpc_utils/                 BaseGrpcServer, interceptors, client factory, run_agent helper
 │   ├── observability/              OTel tracing, Prometheus metrics, structlog
-│   └── llm/                        LiteLLM client (128s retry, rate limiter), parse_llm_json, utils
+│   ├── llm/                        LiteLLM client (128s retry, rate limiter), parse_llm_json, utils
+│   └── generated/                  Proto-generated stubs (run scripts/generate_proto.sh)
+│       ├── common/                 common_pb2.py, health_pb2.py, agent_pb2.py
+│       └── services/               {agent}_pb2.py + {agent}_pb2_grpc.py
 │
 ├── agents/                         9 agent microservices
 │   ├── router/        :2060        Public gateway, intent classification
@@ -414,6 +419,52 @@ rag-swarm/                          158 source files
 │ Containers   │ Docker Compose / Kubernetes                 │
 └──────────────┴────────────────────────────────────────────┘
 ```
+
+## Dashboard Bridge (REST + WebSocket)
+
+The dashboard bridge (`dashboard/server/bridge.py`) serves a real-time monitoring
+UI and exposes REST endpoints for interacting with the pipeline:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Serve dashboard HTML |
+| `/ws` | GET | WebSocket for real-time fullState broadcasts (agents, streams, tasks, metrics) |
+| `/api/state` | GET | Full state JSON (REST fallback) |
+| `/api/task/{task_id}` | GET | Intermediate results for a task |
+| `/api/metrics` | GET | Aggregated Prometheus metrics from all agent endpoints (ports 9090-9098) |
+| `/api/ingest` | POST | File upload -> publishes to `rag:stream:ingest:pending` (bypasses Router gRPC) |
+| `/api/query` | POST | JSON `{"query": "..."}` -> publishes to `rag:stream:query:classified` |
+| `/api/task/{task_id}/poll` | GET | Poll task status + all intermediate results |
+
+The WebSocket fullState broadcast includes a `"metrics"` key with per-agent Prometheus scrape results.
+
+## gRPC Servicer Layer
+
+Each agent now has a `grpc_servicer.py` that maps proto-defined RPCs to the
+framework-agnostic service layer.  The servicers are instantiated in each
+agent's `main.py` and will be registered on the gRPC server once
+`scripts/generate_proto.sh` produces the `_pb2_grpc` stubs.
+
+```
+Agent               Servicer Class         Proto Service           RPCs
+────────────────────────────────────────────────────────────────────────────
+Router              RouterServicer         RouterAgent             IngestDocument, Query, QueryStream, GetTaskStatus
+Ingestion           IngestionServicer      IngestionAgent          ParseDocument, ValidateDocument
+Chunking            ChunkingServicer       ChunkingAgent           ChunkDocument, NormalizeChunks, SummarizeDocument
+Embedding           EmbeddingServicer      EmbeddingAgent          Embed, EmbedBatch, EmbedHybrid
+Retrieval           RetrievalServicer      RetrievalAgent          Search, HybridSearch, StoreChunks
+Graph               GraphServicer          GraphAgent              ExtractEntities, StoreEntities, QueryGraph, ExpandContext
+Reranking           RerankingServicer      RerankingAgent          Rerank, TrimRelevance, ResolveReferences
+Synthesis           SynthesisServicer      SynthesisAgent          Synthesize, SynthesizeStream
+Validation          ValidationServicer     ValidationAgent         Validate, CheckHallucination, VerifyAttribution
+```
+
+Generated proto stubs go in `lib/rag_common/generated/` with sub-packages
+`common/` and `services/`.  To wire fully:
+
+1. Run `scripts/generate_proto.sh`
+2. Uncomment the `add_XxxAgentServicer_to_server(servicer, server._server)`
+   line in each agent's `main.py`
 
 ## Production Hardening (Phase 4)
 

@@ -18,6 +18,7 @@ from rag_common.llm.client import LLMClient
 from rag_common.models.agent import AgentRole
 
 from agents.retrieval.retrieval_agent.config import RetrievalConfig
+from agents.retrieval.retrieval_agent.grpc_servicer import RetrievalServicer
 from agents.retrieval.retrieval_agent.pool import QdrantPool
 from agents.retrieval.retrieval_agent.query_worker import RetrievalQueryWorker
 from agents.retrieval.retrieval_agent.searcher import QdrantSearcher
@@ -50,14 +51,24 @@ async def main() -> None:
 
     # --- Storage path ---
     service = RetrievalService(server.redis_client, pool, retrieval_config)
+
+    # --- Query path (searcher created early for servicer) ---
+    searcher = QdrantSearcher(pool, retrieval_config)
+
+    # --- gRPC servicer (ready for proto registration) ---
+    servicer = RetrievalServicer(service, searcher)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import retrieval_pb2_grpc
+    # retrieval_pb2_grpc.add_RetrievalAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.RETRIEVAL)
+
     storage_worker = RetrievalStorageWorker(
         server.redis_client,
         service,
         consumer_id=server.agent_id,
     )
 
-    # --- Query path ---
-    searcher = QdrantSearcher(pool, retrieval_config)
+    # --- Query worker (reuses searcher from above) ---
     query_worker = RetrievalQueryWorker(
         server.redis_client,
         searcher,
@@ -74,8 +85,8 @@ async def main() -> None:
     try:
         await server.wait_for_shutdown()
     finally:
-        # StorageWorker has async stop; QueryWorker (BaseStreamWorker) has sync stop
-        await storage_worker.stop()
+        # Both workers extend BaseStreamWorker with sync stop()
+        storage_worker.stop()
         query_worker.stop()
         storage_task.cancel()
         query_task.cancel()

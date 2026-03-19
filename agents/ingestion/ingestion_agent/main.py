@@ -11,6 +11,7 @@ from rag_common.models.agent import AgentRole
 from rag_common.observability import setup_logging, setup_metrics, setup_tracing
 
 from .config import IngestionConfig
+from .grpc_servicer import IngestionServicer
 from .service import IngestionService
 from .worker import IngestionWorker
 
@@ -46,6 +47,13 @@ async def serve() -> None:
         config=ingestion_config,
     )
 
+    # gRPC servicer (ready for proto registration)
+    servicer = IngestionServicer(ingestion_service)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import ingestion_pb2_grpc
+    # ingestion_pb2_grpc.add_IngestionAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.INGESTION)
+
     # Build and start stream worker
     worker = IngestionWorker(
         redis_client=redis_client,
@@ -61,7 +69,7 @@ async def serve() -> None:
     try:
         await server.wait_for_shutdown()
     finally:
-        await worker.stop()
+        worker.stop()
         worker_task.cancel()
         try:
             await worker_task

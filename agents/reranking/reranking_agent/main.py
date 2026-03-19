@@ -16,6 +16,7 @@ from rag_common.llm.client import LLMClient
 from rag_common.models.agent import AgentRole
 
 from agents.reranking.reranking_agent.config import RerankingConfig
+from agents.reranking.reranking_agent.grpc_servicer import RerankingServicer
 from agents.reranking.reranking_agent.service import RerankingService
 from agents.reranking.reranking_agent.worker import RerankingWorker
 
@@ -39,13 +40,22 @@ async def main() -> None:
     # --- LLM client ---
     llm_client = LLMClient(llm_config)
 
-    # --- Service + Worker ---
+    # --- Service ---
     service = RerankingService(
         redis_client=server.redis_client,
         llm_client=llm_client,
         config=reranking_config,
         jina_config=jina_config,
     )
+
+    # --- gRPC servicer (ready for proto registration) ---
+    servicer = RerankingServicer(service)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import reranking_pb2_grpc
+    # reranking_pb2_grpc.add_RerankingAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.RERANKING)
+
+    # --- Worker ---
     worker = RerankingWorker(
         redis_client=server.redis_client,
         service=service,

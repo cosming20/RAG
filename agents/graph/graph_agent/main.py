@@ -19,6 +19,7 @@ from rag_common.models.agent import AgentRole
 
 from agents.graph.graph_agent.config import GraphConfig
 from agents.graph.graph_agent.expansion import GraphExpander
+from agents.graph.graph_agent.grpc_servicer import GraphServicer
 from agents.graph.graph_agent.neo4j_client import Neo4jClient
 from agents.graph.graph_agent.query_worker import GraphQueryWorker
 from agents.graph.graph_agent.service import GraphService
@@ -55,14 +56,24 @@ async def main() -> None:
         llm_client,
         graph_config,
     )
+
+    # --- Query path (expander created early for servicer) ---
+    expander = GraphExpander(neo4j_client, llm_client, graph_config)
+
+    # --- gRPC servicer (ready for proto registration) ---
+    servicer = GraphServicer(service, expander)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import graph_pb2_grpc
+    # graph_pb2_grpc.add_GraphAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.GRAPH)
+
     storage_worker = GraphStorageWorker(
         server.redis_client,
         service,
         consumer_id=server.agent_id,
     )
 
-    # --- Query path ---
-    expander = GraphExpander(neo4j_client, llm_client, graph_config)
+    # --- Query worker (reuses expander from above) ---
     query_worker = GraphQueryWorker(
         server.redis_client,
         expander,
@@ -78,8 +89,8 @@ async def main() -> None:
     try:
         await server.wait_for_shutdown()
     finally:
-        # StorageWorker has async stop; QueryWorker (BaseStreamWorker) has sync stop
-        await storage_worker.stop()
+        # Both workers extend BaseStreamWorker with sync stop()
+        storage_worker.stop()
         query_worker.stop()
         storage_task.cancel()
         query_task.cancel()

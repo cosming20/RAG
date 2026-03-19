@@ -16,6 +16,7 @@ from rag_common.llm.client import LLMClient
 from rag_common.models.agent import AgentRole
 
 from agents.synthesis.synthesis_agent.config import SynthesisConfig
+from agents.synthesis.synthesis_agent.grpc_servicer import SynthesisServicer
 from agents.synthesis.synthesis_agent.service import SynthesisService
 from agents.synthesis.synthesis_agent.worker import SynthesisWorker
 
@@ -38,12 +39,21 @@ async def main() -> None:
     # --- LLM client ---
     llm_client = LLMClient(llm_config)
 
-    # --- Service + Worker ---
+    # --- Service ---
     service = SynthesisService(
         server.redis_client,
         llm_client,
         synthesis_config,
     )
+
+    # --- gRPC servicer (ready for proto registration) ---
+    servicer = SynthesisServicer(service)
+    # TODO: Register when proto generation is complete:
+    # from rag_common.generated.services import synthesis_pb2_grpc
+    # synthesis_pb2_grpc.add_SynthesisAgentServicer_to_server(servicer, server._server)
+    logger.info("gRPC servicer created for %s (awaiting proto registration)", AgentRole.SYNTHESIS)
+
+    # --- Worker ---
     worker = SynthesisWorker(
         server.redis_client,
         service,
